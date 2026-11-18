@@ -7471,38 +7471,10 @@ function getWatchMetadata(x){
                 CWD.date=theDate.split("on ")[1];
                 CWD.dateMode="normal";
             }
-            if(theDate.includes("January")){
-                CWD.superDate="January"+theDate.split("Jan")[1];
-            }
-            if(theDate.includes("Feb")){
-                CWD.superDate="February"+theDate.split("Feb")[1];
-            }
-            if(theDate.includes("Mar")){
-                CWD.superDate="March"+theDate.split("Mar")[1];
-            }
-            if(theDate.includes("Apr")){
-                CWD.superDate="April"+theDate.split("Apr")[1];
-            }
-            if(theDate.includes("Jun")){
-                CWD.superDate="June"+theDate.split("Jun")[1];
-            }
-            if(theDate.includes("Jul")){
-                CWD.superDate="July"+theDate.split("Jul")[1];
-            }
-            if(theDate.includes("Aug")){
-                CWD.superDate="August"+theDate.split("Aug")[1];
-            }
-            if(theDate.includes("Sep")){
-                CWD.superDate="September"+theDate.split("Sep")[1];
-            }
-            if(theDate.includes("Oct")){
-                CWD.superDate="October"+theDate.split("Oct")[1];
-            }
-            if(theDate.includes("Nov")){
-                CWD.superDate="November"+theDate.split("Nov")[1];
-            }
-            if(theDate.includes("Dec")){
-                CWD.superDate="December"+theDate.split("Dec")[1];
+            const ST_MONTHS={Jan:"January",Feb:"February",Mar:"March",Apr:"April",May:"May",Jun:"June",Jul:"July",Aug:"August",Sep:"September",Oct:"October",Nov:"November",Dec:"December"};
+            const stM=theDate.match(/(\d{1,2}\s+)?\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?(\s+\d{1,2},?)?\s+\d{4}/);
+            if(stM){
+                CWD.superDate=stM[0].replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?/,m=>ST_MONTHS[m.slice(0,3)]);
             }
             let chanLink="/channel/"+theHref;
             CWD.channelLink=chanLink;
