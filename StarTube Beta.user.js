@@ -32,8 +32,52 @@ if($(".jfk-dialog-background.hid") == null){
 	$(".jfk-dialog-background").click();
 }
 }
+// Map a channel grid item (videoRenderer, gridVideoRenderer or the newer lockupViewModel) to the videoRenderer shape
+function stNormalizeVideo(c){
+	if(c == null){
+		return null;
+	}
+	if(c.gridVideoRenderer){
+		return c.gridVideoRenderer;
+	}
+	if(c.videoRenderer){
+		return c.videoRenderer;
+	}
+	let l = c.lockupViewModel;
+	if(l == null || (l.contentType && l.contentType != "LOCKUP_CONTENT_TYPE_VIDEO")){
+		return null;
+	}
+	let meta = l.metadata?.lockupMetadataViewModel;
+	let parts = (meta?.metadata?.contentMetadataViewModel?.metadataRows ?? []).flatMap(r => r.metadataParts ?? []).map(p => p.text?.content ?? "");
+	let tvm = l.contentImage?.thumbnailViewModel;
+	let sources = tvm?.image?.sources ?? [];
+	let length = "";
+	JSON.stringify(tvm?.overlays ?? [], (k, v) => {
+		if(length == "" && v && v.thumbnailBadgeViewModel && /^\d+(:\d+)+$/.test(v.thumbnailBadgeViewModel.text ?? "")){
+			length = v.thumbnailBadgeViewModel.text;
+		}
+		return v;
+	});
+	let url = l.rendererContext?.commandContext?.onTap?.innertubeCommand?.commandMetadata?.webCommandMetadata?.url ?? ("/watch?v=" + l.contentId);
+	return {
+		videoId: l.contentId,
+		thumbnail: {thumbnails: sources.length ? sources : [{url: "https://i.ytimg.com/vi/" + l.contentId + "/hqdefault.jpg"}]},
+		navigationEndpoint: {commandMetadata: {webCommandMetadata: {url: url}}},
+		title: {simpleText: meta?.title?.content ?? ""},
+		viewCountText: {simpleText: parts.find(t => /view|watching/i.test(t)) ?? ""},
+		publishedTimeText: {simpleText: parts.find(t => /ago|streamed|premiere/i.test(t)) ?? ""},
+		lengthText: {simpleText: length},
+	};
+}
 function openV3Settings(){
-$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)").click();
+// V3 only renders this menu item when NEW_OOBE_DEBUGGER_DELEGATION2 is on;
+// otherwise its settings live in the old debugger panel, opened by the expand icon
+let v3Entry=$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)")||$(".vdbg-titlebar-action.expand .oz-expand-debugger-icon")||$(".oz-expand-debugger-icon");
+if(v3Entry==null){
+	console.warn("[StarTube] V3 settings entry not found");
+	return;
+}
+v3Entry.click();
 if($("#startube-settings-window.hid") == null){
 	$("#startube-settings-window-entity").classList.add("hid");
 }
@@ -7589,38 +7633,10 @@ function getWatchMetadata(x){
                 CWD.date=theDate.split("on ")[1];
                 CWD.dateMode="normal";
             }
-            if(theDate.includes("January")){
-                CWD.superDate="January"+theDate.split("Jan")[1];
-            }
-            if(theDate.includes("Feb")){
-                CWD.superDate="February"+theDate.split("Feb")[1];
-            }
-            if(theDate.includes("Mar")){
-                CWD.superDate="March"+theDate.split("Mar")[1];
-            }
-            if(theDate.includes("Apr")){
-                CWD.superDate="April"+theDate.split("Apr")[1];
-            }
-            if(theDate.includes("Jun")){
-                CWD.superDate="June"+theDate.split("Jun")[1];
-            }
-            if(theDate.includes("Jul")){
-                CWD.superDate="July"+theDate.split("Jul")[1];
-            }
-            if(theDate.includes("Aug")){
-                CWD.superDate="August"+theDate.split("Aug")[1];
-            }
-            if(theDate.includes("Sep")){
-                CWD.superDate="September"+theDate.split("Sep")[1];
-            }
-            if(theDate.includes("Oct")){
-                CWD.superDate="October"+theDate.split("Oct")[1];
-            }
-            if(theDate.includes("Nov")){
-                CWD.superDate="November"+theDate.split("Nov")[1];
-            }
-            if(theDate.includes("Dec")){
-                CWD.superDate="December"+theDate.split("Dec")[1];
+            const ST_MONTHS={Jan:"January",Feb:"February",Mar:"March",Apr:"April",May:"May",Jun:"June",Jul:"July",Aug:"August",Sep:"September",Oct:"October",Nov:"November",Dec:"December"};
+            const stM=theDate.match(/(\d{1,2}\s+)?\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?(\s+\d{1,2},?)?\s+\d{4}/);
+            if(stM){
+                CWD.superDate=stM[0].replace(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?/,m=>ST_MONTHS[m.slice(0,3)]);
             }
             let chanLink="/channel/"+theHref;
             CWD.channelLink=chanLink;
@@ -12097,10 +12113,9 @@ Search
 		if(page == "videos"){
 			gdp.currChan.content.forEach(i => {
 				if(i.richItemRenderer){
-                    if(i.richItemRenderer.content.gridVideoRenderer){
-                        i = i.richItemRenderer.content.gridVideoRenderer;
-                    }else{
-                        i = i.richItemRenderer.content.videoRenderer;
+                    i = stNormalizeVideo(i.richItemRenderer.content);
+                    if(i == null){
+                        return;
                     }
 					let i2 = i.contextItemData;
 					let href;
@@ -12109,10 +12124,10 @@ Search
 					let title;
 					let thumbnail = i.thumbnail.thumbnails[0].url;
 					if(api == "innertube"){
-						href = i.navigationEndpoint.commandMetadata.webCommandMetadata.url;
-						viewCount = i.viewCountText.simpleText;
-						publishDate = i.publishedTimeText.simpleText;
-						title = i.title.runs[0].text;
+						href = i.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url ?? ("/watch?v=" + i.videoId);
+						viewCount = i.viewCountText?.simpleText ?? i.viewCountText?.runs?.map(r => r.text).join("") ?? "";
+						publishDate = i.publishedTimeText?.simpleText ?? "";
+						title = i.title?.runs?.[0]?.text ?? i.title?.simpleText ?? "";
 					}else{
 						href = i2.href;
 						viewCount = i2.viewCount;
@@ -12134,7 +12149,7 @@ Search
 	  </span>
 	</span>
   </span></span>
-<span class="video-time">${i.lengthText.simpleText}</span>
+<span class="video-time">${i.lengthText?.simpleText ?? ""}</span>
 <button class="yt-uix-button yt-uix-button-size-default yt-uix-button-default addto-button video-actions addto-watch-later-button yt-uix-button-size-small yt-uix-button-empty"><span class="yt-uix-button-content"><img src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif"></span></button>
 </a></div><div class="yt-lockup-content"><h3 class="yt-lockup-title">
 <a class="yt-uix-sessionlink yt-uix-tile-link yt-ui-ellipsis yt-ui-ellipsis-2 g-hovercard" dir="ltr" href="${href}"><span class="yt-ui-ellipsis-wrapper">${title}</span></a>
@@ -12166,21 +12181,31 @@ Search
 						$(".c3-continuation button").setAttribute("disabled","");
 						$(".c3-continuation .run").textContent = "Please go to /videos?view=0 to load more videos.";
 					}else{
-						newElem.querySelector("button").addEventListener("click", function(){
-							let key = i.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
-							if(gdp.loggedIn == true){
-								EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-									newElem.remove();
-									gdp.currChan.content = result.onResponseReceivedActions[0].appendContinuationItemsAction.continuationItems;
-									fillC3Page("videos",number,"innertube");
-								});
-							}else{
-								EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-									newElem.remove();
-									gdp.currChan.content = result.onResponseReceivedActions[0].appendContinuationItemsAction.continuationItems;
-									fillC3Page("videos",number,"innertube");
-								});
+						let stBtn = newElem.querySelector("button");
+						stBtn.addEventListener("click", function(){
+							if(stBtn.hasAttribute("disabled")){
+								return;
 							}
+							stBtn.setAttribute("disabled","");
+							newElem.querySelector(".run").classList.add("hid");
+							newElem.querySelector(".loading").classList.remove("hid");
+							let key = i.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
+							let mode = gdp.loggedIn == true ? "doubleLoggedIn" : "double";
+							EXFetch("none",mode,"browse","browseId",gdp.currChan.id,"params","EgZ2aWRlb3PyBgQKAjoA","continuation",key).then(result => {
+								let items = result?.onResponseReceivedActions?.[0]?.appendContinuationItemsAction?.continuationItems;
+								if(!items){
+									throw new Error("no continuation items in response: " + JSON.stringify(result).slice(0,300));
+								}
+								newElem.remove();
+								gdp.currChan.content = items;
+								fillC3Page("videos",number,"innertube");
+							}).catch(err => {
+								console.error("[StarTube] channel videos Show more failed", err);
+								stBtn.removeAttribute("disabled");
+								newElem.querySelector(".loading").classList.add("hid");
+								newElem.querySelector(".run").classList.remove("hid");
+								newElem.querySelector(".run").textContent = "Couldn't load more videos, click to retry";
+							});
 						});
 					}
 				}
@@ -12901,7 +12926,7 @@ Search
 	  </span>
 	</span>
   </span></span>
-<span class="video-time">${i.lengthText.simpleText}</span>
+<span class="video-time">${i.lengthText?.simpleText ?? ""}</span>
 <button class="yt-uix-button yt-uix-button-size-default yt-uix-button-default addto-button video-actions addto-watch-later-button yt-uix-button-size-small yt-uix-button-empty"><span class="yt-uix-button-content"><img src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif"></span></button>
 </a></div><div class="yt-lockup-content"><h3 class="yt-lockup-title">
 <a class="yt-uix-sessionlink yt-uix-tile-link yt-ui-ellipsis yt-ui-ellipsis-2 g-hovercard" dir="ltr" href="${href}"><span class="yt-ui-ellipsis-wrapper">${title}</span></a>
@@ -13409,83 +13434,65 @@ ${date}
 </div>
 					`;
 			let rgi = $("#content").data.twoColumnBrowseResultsRenderer.items[0].brandedPageV2Renderer.tabs[1].tabRenderer.richGridInfo;
-            let chipBar0;
-            let chipBar1;
-            let chipBar2;
-            if(rgi){
-                if(rgi.header.chipBarViewModel){
-                    chipBar0=rgi.header.chipBarViewModel.chips[0].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
-                    chipBar1=rgi.header.chipBarViewModel.chips[1].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
-                    chipBar2=rgi.header.chipBarViewModel.chips[2].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
+            // chip tokens, whichever chip format YouTube sent (chipViewModel or chipCloudChipRenderer)
+            let stChips = rgi?.header?.chipBarViewModel?.chips ?? rgi?.header?.feedFilterChipBarRenderer?.contents ?? [];
+            let stChipToken = c => {
+                let tok = null;
+                JSON.stringify(c ?? {}, (k, v) => {
+                    if(tok == null && k == "continuationCommand" && v?.token){
+                        tok = v.token;
+                    }
+                    return v;
+                });
+                return tok;
+            };
+            // V3 rewrites the chips: no continuation token, only realNavigationEndpoint.browseEndpoint with sort params
+            let stChipSource = c => {
+                let chip = c?.chipCloudChipRenderer ?? c?.chipViewModel ?? c;
+                return {token: stChipToken(c), params: chip?.realNavigationEndpoint?.browseEndpoint?.params ?? chip?.navigationEndpoint?.browseEndpoint?.params ?? null};
+            };
+            let stSortTokens = {newest: stChipSource(stChips[0]), popular: stChipSource(stChips[1]), oldest: stChipSource(stChips[2])};
+            let stSortChannelVideos = function(state){
+                $("#c3-filter-dropdown").setAttribute("state",state);
+                $("#c3-filter-menu").setAttribute("state",state);
+                let src = stSortTokens[state];
+                if(src.token == null && src.params == null){
+                    console.error("[StarTube] no sort token for " + state, rgi?.header);
+                    return;
                 }
-                else if(rgi.header.feedFilterChipBarRenderer){
-                    chipBar0=rgi.header.feedFilterChipBarRenderer.contents[0].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                    chipBar1=rgi.header.feedFilterChipBarRenderer.contents[1].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                    chipBar2=rgi.header.feedFilterChipBarRenderer.contents[2].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                }
-            }
-			if(!window.location.href.includes("view=0")){
-			}else{
-				$("#c3-sort-popular").addEventListener("click", function(){
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
+                $("#c3-content-items").innerHTML = `<div class="c3-loading">
 							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
 <span class="yt-spinner-message">Loading...</span></p>
 						</div>`;
-					$("#c3-filter-dropdown").setAttribute("state","popular");
-					$("#c3-filter-menu").setAttribute("state","popular");
-					let key = chipBar1;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
-				$("#c3-sort-newest").addEventListener("click", function(){
-					$("#c3-filter-dropdown").setAttribute("state","newest");
-					$("#c3-filter-menu").setAttribute("state","newest");
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
-							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
-<span class="yt-spinner-message">Loading...</span></p>
-						</div>`;
-					let key = chipBar0;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
-				$("#c3-sort-oldest").addEventListener("click", function(){
-					$("#c3-filter-dropdown").setAttribute("state","oldest");
-					$("#c3-filter-menu").setAttribute("state","oldest");
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
-							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
-<span class="yt-spinner-message">Loading...</span></p>
-						</div>`;
-					let key = chipBar2;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
+                let mode = gdp.loggedIn == true ? "doubleLoggedIn" : "double";
+                let req = src.token
+                    ? EXFetch("none",mode,"browse","browseId",gdp.currChan.id,"params","EgZ2aWRlb3PyBgQKAjoA","continuation",src.token)
+                    : EXFetch("none","single","browse","browseId",gdp.currChan.id,"params",src.params);
+                req.then(result => {
+                    let acts = result?.onResponseReceivedActions ?? [];
+                    let act = acts.find(a => a.reloadContinuationItemsCommand?.continuationItems?.length) ?? acts.find(a => a.appendContinuationItemsAction?.continuationItems?.length);
+                    let items = (act?.reloadContinuationItemsCommand ?? act?.appendContinuationItemsAction)?.continuationItems;
+                    if(!items){
+                        // full browse response: take the selected tab's grid
+                        let tabs = result?.contents?.twoColumnBrowseResultsRenderer?.tabs ?? [];
+                        let tab = tabs.map(t => t.tabRenderer).find(t => t?.selected && t.content?.richGridRenderer);
+                        items = tab?.content?.richGridRenderer?.contents;
+                    }
+                    if(!items){
+                        throw new Error("no items in sort response: " + JSON.stringify(result).slice(0,300));
+                    }
+                    $("#c3-content-items").innerHTML = "";
+                    gdp.currChan.content = items;
+                    fillC3Page("videos",0,"innertube");
+                }).catch(err => {
+                    console.error("[StarTube] channel videos sort (" + state + ") failed", err);
+                    $("#c3-content-items").innerHTML = `<p class="c3-loading">Couldn't load videos, pick the sort again to retry.</p>`;
+                });
+            };
+			if(window.location.href.includes("view=0")){
+				$("#c3-sort-newest").addEventListener("click", () => stSortChannelVideos("newest"));
+				$("#c3-sort-popular").addEventListener("click", () => stSortChannelVideos("popular"));
+				$("#c3-sort-oldest").addEventListener("click", () => stSortChannelVideos("oldest"));
 			}
 		}
 		if(gdp.currChan.currPage == "playlists"){
@@ -14017,7 +14024,7 @@ if($("#st-settings-button")==null){
 					}
 				});
 			}else if($("#upload-menu-account")){
-				$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)").addEventListener("click",function(){
+				$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)")?.addEventListener("click",function(){
 					if($("#st-settings-button")==null){
 						createOOBEAccessBtn();
 					}
