@@ -11904,10 +11904,10 @@ Search
 					let title;
 					let thumbnail = i.thumbnail.thumbnails[0].url;
 					if(api == "innertube"){
-						href = i.navigationEndpoint.commandMetadata.webCommandMetadata.url;
-						viewCount = i.viewCountText.simpleText;
-						publishDate = i.publishedTimeText.simpleText;
-						title = i.title.runs[0].text;
+						href = i.navigationEndpoint?.commandMetadata?.webCommandMetadata?.url ?? ("/watch?v=" + i.videoId);
+						viewCount = i.viewCountText?.simpleText ?? i.viewCountText?.runs?.map(r => r.text).join("") ?? "";
+						publishDate = i.publishedTimeText?.simpleText ?? "";
+						title = i.title?.runs?.[0]?.text ?? i.title?.simpleText ?? "";
 					}else{
 						href = i2.href;
 						viewCount = i2.viewCount;
@@ -11961,21 +11961,31 @@ Search
 						$(".c3-continuation button").setAttribute("disabled","");
 						$(".c3-continuation .run").textContent = "Please go to /videos?view=0 to load more videos.";
 					}else{
-						newElem.querySelector("button").addEventListener("click", function(){
-							let key = i.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
-							if(gdp.loggedIn == true){
-								EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-									newElem.remove();
-									gdp.currChan.content = result.onResponseReceivedActions[0].appendContinuationItemsAction.continuationItems;
-									fillC3Page("videos",number,"innertube");
-								});
-							}else{
-								EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-									newElem.remove();
-									gdp.currChan.content = result.onResponseReceivedActions[0].appendContinuationItemsAction.continuationItems;
-									fillC3Page("videos",number,"innertube");
-								});
+						let stBtn = newElem.querySelector("button");
+						stBtn.addEventListener("click", function(){
+							if(stBtn.hasAttribute("disabled")){
+								return;
 							}
+							stBtn.setAttribute("disabled","");
+							newElem.querySelector(".run").classList.add("hid");
+							newElem.querySelector(".loading").classList.remove("hid");
+							let key = i.continuationItemRenderer.continuationEndpoint.continuationCommand.token;
+							let mode = gdp.loggedIn == true ? "doubleLoggedIn" : "double";
+							EXFetch("none",mode,"browse","browseId",gdp.currChan.id,"params","EgZ2aWRlb3PyBgQKAjoA","continuation",key).then(result => {
+								let items = result?.onResponseReceivedActions?.[0]?.appendContinuationItemsAction?.continuationItems;
+								if(!items){
+									throw new Error("no continuation items in response: " + JSON.stringify(result).slice(0,300));
+								}
+								newElem.remove();
+								gdp.currChan.content = items;
+								fillC3Page("videos",number,"innertube");
+							}).catch(err => {
+								console.error("[StarTube] channel videos Show more failed", err);
+								stBtn.removeAttribute("disabled");
+								newElem.querySelector(".loading").classList.add("hid");
+								newElem.querySelector(".run").classList.remove("hid");
+								newElem.querySelector(".run").textContent = "Couldn't load more videos, click to retry";
+							});
 						});
 					}
 				}
