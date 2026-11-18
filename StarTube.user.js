@@ -13247,83 +13247,65 @@ ${date}
 </div>
 					`;
 			let rgi = $("#content").data.twoColumnBrowseResultsRenderer.items[0].brandedPageV2Renderer.tabs[1].tabRenderer.richGridInfo;
-            let chipBar0;
-            let chipBar1;
-            let chipBar2;
-            if(rgi){
-                if(rgi.header.chipBarViewModel){
-                    chipBar0=rgi.header.chipBarViewModel.chips[0].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
-                    chipBar1=rgi.header.chipBarViewModel.chips[1].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
-                    chipBar2=rgi.header.chipBarViewModel.chips[2].chipViewModel.tapCommand.innertubeCommand.continuationCommand.token;
+            // chip tokens, whichever chip format YouTube sent (chipViewModel or chipCloudChipRenderer)
+            let stChips = rgi?.header?.chipBarViewModel?.chips ?? rgi?.header?.feedFilterChipBarRenderer?.contents ?? [];
+            let stChipToken = c => {
+                let tok = null;
+                JSON.stringify(c ?? {}, (k, v) => {
+                    if(tok == null && k == "continuationCommand" && v?.token){
+                        tok = v.token;
+                    }
+                    return v;
+                });
+                return tok;
+            };
+            // V3 rewrites the chips: no continuation token, only realNavigationEndpoint.browseEndpoint with sort params
+            let stChipSource = c => {
+                let chip = c?.chipCloudChipRenderer ?? c?.chipViewModel ?? c;
+                return {token: stChipToken(c), params: chip?.realNavigationEndpoint?.browseEndpoint?.params ?? chip?.navigationEndpoint?.browseEndpoint?.params ?? null};
+            };
+            let stSortTokens = {newest: stChipSource(stChips[0]), popular: stChipSource(stChips[1]), oldest: stChipSource(stChips[2])};
+            let stSortChannelVideos = function(state){
+                $("#c3-filter-dropdown").setAttribute("state",state);
+                $("#c3-filter-menu").setAttribute("state",state);
+                let src = stSortTokens[state];
+                if(src.token == null && src.params == null){
+                    console.error("[StarTube] no sort token for " + state, rgi?.header);
+                    return;
                 }
-                else if(rgi.header.feedFilterChipBarRenderer){
-                    chipBar0=rgi.header.feedFilterChipBarRenderer.contents[0].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                    chipBar1=rgi.header.feedFilterChipBarRenderer.contents[1].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                    chipBar2=rgi.header.feedFilterChipBarRenderer.contents[2].chipCloudChipRenderer.navigationEndpoint.continuationCommand.token;
-                }
-            }
-			if(!window.location.href.includes("view=0")){
-			}else{
-				$("#c3-sort-popular").addEventListener("click", function(){
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
+                $("#c3-content-items").innerHTML = `<div class="c3-loading">
 							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
 <span class="yt-spinner-message">Loading...</span></p>
 						</div>`;
-					$("#c3-filter-dropdown").setAttribute("state","popular");
-					$("#c3-filter-menu").setAttribute("state","popular");
-					let key = chipBar1;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
-				$("#c3-sort-newest").addEventListener("click", function(){
-					$("#c3-filter-dropdown").setAttribute("state","newest");
-					$("#c3-filter-menu").setAttribute("state","newest");
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
-							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
-<span class="yt-spinner-message">Loading...</span></p>
-						</div>`;
-					let key = chipBar0;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
-				$("#c3-sort-oldest").addEventListener("click", function(){
-					$("#c3-filter-dropdown").setAttribute("state","oldest");
-					$("#c3-filter-menu").setAttribute("state","oldest");
-					$("#c3-content-items").innerHTML = `<div class="c3-loading">
-							<p class="yt-spinner"><img class="yt-spinner-img" src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif">
-<span class="yt-spinner-message">Loading...</span></p>
-						</div>`;
-					let key = chipBar2;
-					if(gdp.loggedIn == true){
-						EXFetch("none","doubleLoggedIn","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}else{
-						EXFetch("none","double","browse","browseId",gdp.currChan.id,"params","EghjaGFubmVsc_IGBAoCUgA%3D","continuation",key).then(result => {
-							gdp.currChan.content = result.onResponseReceivedActions[1].reloadContinuationItemsCommand.continuationItems;
-							fillC3Page("videos",0,"innertube");
-						});
-					}
-				});
+                let mode = gdp.loggedIn == true ? "doubleLoggedIn" : "double";
+                let req = src.token
+                    ? EXFetch("none",mode,"browse","browseId",gdp.currChan.id,"params","EgZ2aWRlb3PyBgQKAjoA","continuation",src.token)
+                    : EXFetch("none","single","browse","browseId",gdp.currChan.id,"params",src.params);
+                req.then(result => {
+                    let acts = result?.onResponseReceivedActions ?? [];
+                    let act = acts.find(a => a.reloadContinuationItemsCommand?.continuationItems?.length) ?? acts.find(a => a.appendContinuationItemsAction?.continuationItems?.length);
+                    let items = (act?.reloadContinuationItemsCommand ?? act?.appendContinuationItemsAction)?.continuationItems;
+                    if(!items){
+                        // full browse response: take the selected tab's grid
+                        let tabs = result?.contents?.twoColumnBrowseResultsRenderer?.tabs ?? [];
+                        let tab = tabs.map(t => t.tabRenderer).find(t => t?.selected && t.content?.richGridRenderer);
+                        items = tab?.content?.richGridRenderer?.contents;
+                    }
+                    if(!items){
+                        throw new Error("no items in sort response: " + JSON.stringify(result).slice(0,300));
+                    }
+                    $("#c3-content-items").innerHTML = "";
+                    gdp.currChan.content = items;
+                    fillC3Page("videos",0,"innertube");
+                }).catch(err => {
+                    console.error("[StarTube] channel videos sort (" + state + ") failed", err);
+                    $("#c3-content-items").innerHTML = `<p class="c3-loading">Couldn't load videos, pick the sort again to retry.</p>`;
+                });
+            };
+			if(window.location.href.includes("view=0")){
+				$("#c3-sort-newest").addEventListener("click", () => stSortChannelVideos("newest"));
+				$("#c3-sort-popular").addEventListener("click", () => stSortChannelVideos("popular"));
+				$("#c3-sort-oldest").addEventListener("click", () => stSortChannelVideos("oldest"));
 			}
 		}
 		if(gdp.currChan.currPage == "playlists"){
