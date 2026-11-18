@@ -33,7 +33,14 @@ if($(".jfk-dialog-background.hid") == null){
 }
 }
 function openV3Settings(){
-$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)").click();
+// V3 only renders this menu item when NEW_OOBE_DEBUGGER_DELEGATION2 is on;
+// otherwise its settings live in the old debugger panel, opened by the expand icon
+let v3Entry=$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)")||$(".vdbg-titlebar-action.expand .oz-expand-debugger-icon")||$(".oz-expand-debugger-icon");
+if(v3Entry==null){
+	console.warn("[StarTube] V3 settings entry not found");
+	return;
+}
+v3Entry.click();
 if($("#startube-settings-window.hid") == null){
 	$("#startube-settings-window-entity").classList.add("hid");
 }
@@ -13830,7 +13837,7 @@ if($("#st-settings-button")==null){
 					}
 				});
 			}else if($("#upload-menu-account")){
-				$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)").addEventListener("click",function(){
+				$("#upload-menu-account:not(.yt-uix-button-menu-new-section-separator)")?.addEventListener("click",function(){
 					if($("#st-settings-button")==null){
 						createOOBEAccessBtn();
 					}
