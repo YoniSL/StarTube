@@ -32,6 +32,43 @@ if($(".jfk-dialog-background.hid") == null){
 	$(".jfk-dialog-background").click();
 }
 }
+// Map a channel grid item (videoRenderer, gridVideoRenderer or the newer lockupViewModel) to the videoRenderer shape
+function stNormalizeVideo(c){
+	if(c == null){
+		return null;
+	}
+	if(c.gridVideoRenderer){
+		return c.gridVideoRenderer;
+	}
+	if(c.videoRenderer){
+		return c.videoRenderer;
+	}
+	let l = c.lockupViewModel;
+	if(l == null || (l.contentType && l.contentType != "LOCKUP_CONTENT_TYPE_VIDEO")){
+		return null;
+	}
+	let meta = l.metadata?.lockupMetadataViewModel;
+	let parts = (meta?.metadata?.contentMetadataViewModel?.metadataRows ?? []).flatMap(r => r.metadataParts ?? []).map(p => p.text?.content ?? "");
+	let tvm = l.contentImage?.thumbnailViewModel;
+	let sources = tvm?.image?.sources ?? [];
+	let length = "";
+	JSON.stringify(tvm?.overlays ?? [], (k, v) => {
+		if(length == "" && v && v.thumbnailBadgeViewModel && /^\d+(:\d+)+$/.test(v.thumbnailBadgeViewModel.text ?? "")){
+			length = v.thumbnailBadgeViewModel.text;
+		}
+		return v;
+	});
+	let url = l.rendererContext?.commandContext?.onTap?.innertubeCommand?.commandMetadata?.webCommandMetadata?.url ?? ("/watch?v=" + l.contentId);
+	return {
+		videoId: l.contentId,
+		thumbnail: {thumbnails: sources.length ? sources : [{url: "https://i.ytimg.com/vi/" + l.contentId + "/hqdefault.jpg"}]},
+		navigationEndpoint: {commandMetadata: {webCommandMetadata: {url: url}}},
+		title: {simpleText: meta?.title?.content ?? ""},
+		viewCountText: {simpleText: parts.find(t => /view|watching/i.test(t)) ?? ""},
+		publishedTimeText: {simpleText: parts.find(t => /ago|streamed|premiere/i.test(t)) ?? ""},
+		lengthText: {simpleText: length},
+	};
+}
 function openV3Settings(){
 // V3 only renders this menu item when NEW_OOBE_DEBUGGER_DELEGATION2 is on;
 // otherwise its settings live in the old debugger panel, opened by the expand icon
@@ -11892,10 +11929,9 @@ Search
 		if(page == "videos"){
 			gdp.currChan.content.forEach(i => {
 				if(i.richItemRenderer){
-                    if(i.richItemRenderer.content.gridVideoRenderer){
-                        i = i.richItemRenderer.content.gridVideoRenderer;
-                    }else{
-                        i = i.richItemRenderer.content.videoRenderer;
+                    i = stNormalizeVideo(i.richItemRenderer.content);
+                    if(i == null){
+                        return;
                     }
 					let i2 = i.contextItemData;
 					let href;
@@ -11929,7 +11965,7 @@ Search
 	  </span>
 	</span>
   </span></span>
-<span class="video-time">${i.lengthText.simpleText}</span>
+<span class="video-time">${i.lengthText?.simpleText ?? ""}</span>
 <button class="yt-uix-button yt-uix-button-size-default yt-uix-button-default addto-button video-actions addto-watch-later-button yt-uix-button-size-small yt-uix-button-empty"><span class="yt-uix-button-content"><img src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif"></span></button>
 </a></div><div class="yt-lockup-content"><h3 class="yt-lockup-title">
 <a class="yt-uix-sessionlink yt-uix-tile-link yt-ui-ellipsis yt-ui-ellipsis-2 g-hovercard" dir="ltr" href="${href}"><span class="yt-ui-ellipsis-wrapper">${title}</span></a>
@@ -12705,7 +12741,7 @@ Search
 	  </span>
 	</span>
   </span></span>
-<span class="video-time">${i.lengthText.simpleText}</span>
+<span class="video-time">${i.lengthText?.simpleText ?? ""}</span>
 <button class="yt-uix-button yt-uix-button-size-default yt-uix-button-default addto-button video-actions addto-watch-later-button yt-uix-button-size-small yt-uix-button-empty"><span class="yt-uix-button-content"><img src="//s.ytimg.com/yts/img/pixel-vfl3z5WfW.gif"></span></button>
 </a></div><div class="yt-lockup-content"><h3 class="yt-lockup-title">
 <a class="yt-uix-sessionlink yt-uix-tile-link yt-ui-ellipsis yt-ui-ellipsis-2 g-hovercard" dir="ltr" href="${href}"><span class="yt-ui-ellipsis-wrapper">${title}</span></a>
